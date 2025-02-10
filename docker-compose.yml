@@ -1,0 +1,139 @@
+services:
+  # Redis for Shopping Cart Service
+  redis:
+    image: redis:7.0
+    container_name: redis
+    ports:
+      - "6379:6379" # Expose Redis port for development
+    volumes:
+      - redis_data:/data # Persist Redis data
+
+  # PostgreSQL for Product Catalog
+  postgresql-products:
+    image: postgres:15
+    container_name: postgresql-products
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: products_db
+    ports:
+      - "5432:5432" # Expose PostgreSQL port for development
+    volumes:
+      - postgres_products_data:/var/lib/postgresql/data # Persist database data
+
+  # PostgreSQL for User Service
+  postgresql-users:
+    image: postgres:15
+    container_name: postgresql-users
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: users_db
+    ports:
+      - "5433:5432" # Expose PostgreSQL port for development
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data # Persist database data
+
+  # PostgreSQL for Order Service
+  postgresql-orders:
+    image: postgres:15
+    container_name: postgresql-orders
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: orders_db
+    ports:
+      - "5434:5432" # Expose PostgreSQL port for development
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data # Persist database data
+
+  # API Gateway
+  apigateway:
+    image: apigateway
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    ports:
+      - "5000:80" # Expose API Gateway on port 5000
+    depends_on:
+      - paymentservice
+      - userservice
+      - notificationservice
+      - shoppingcart
+      - orderservice
+
+  # Payment Service
+  paymentservice:
+    image: paymentservice
+    build:
+      context: ./PaymentService
+      dockerfile: Dockerfile
+    ports:
+      - "5001:80" # Expose Payment Service on port 5001
+    depends_on:
+      - userservice
+      - notificationservice
+
+  # User Service
+  userservice:
+    image: userservice
+    build:
+      context: ./UserService
+      dockerfile: Dockerfile
+    ports:
+      - "5002:80" # Expose User Service on port 5002
+    depends_on:
+      - postgresql-users
+    environment:
+      - CONNECTION_STRING=Host=postgresql-users;Database=users_db;Username=admin;Password=adminpassword
+
+  # Notification Service
+  notificationservice:
+    image: notificationservice
+    build:
+      context: ./NotificationService
+      dockerfile: Dockerfile
+    ports:
+      - "5003:80" # Expose Notification Service on port 5003
+
+  # Product Catalog Service
+  productcatalog:
+    image: productcatalog
+    build:
+      context: ./ProductCatalog
+      dockerfile: Dockerfile
+    ports:
+      - "5004:80" # Expose Product Catalog Service on port 5004
+    depends_on:
+      - postgresql-products
+    environment:
+      - CONNECTION_STRING=Host=postgresql-products;Database=products_db;Username=admin;Password=adminpassword
+
+  # Shopping Cart Service
+  shoppingcart:
+    image: shoppingcart
+    build:
+      context: ./ShoppingCart
+      dockerfile: Dockerfile
+    ports:
+      - "5005:80" # Expose Shopping Cart Service on port 5005
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  # Order Service
+  orderservice:
+    image: orderservice
+    build:
+      context: ./OrderService
+      dockerfile: Dockerfile
+    ports:
+      - "5006:80" # Expose Order Service on port 500
+
+volumes:
+  redis_data:
+  postgres_products_data:
+  postgres_users_data:
+  postgres_orders_data:
