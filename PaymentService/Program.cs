@@ -1,10 +1,21 @@
+using Microsoft.Extensions.Options;
+using PaymentService.Interfaces;
+using PaymentService.Settings;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.Configure<PaymentSettings>(builder.Configuration.GetSection("PaymentSettings"));
+builder.Services.AddSingleton<IPaymentSettings>(provider =>
+{
+	var settings = provider.GetRequiredService<IOptions<PaymentSettings>>().Value;
+	return settings;
+});
+
 
 var app = builder.Build();
 

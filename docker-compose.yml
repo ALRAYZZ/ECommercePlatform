@@ -69,7 +69,7 @@ services:
       context: ./PaymentService
       dockerfile: Dockerfile
     ports:
-      - "5001:80" # Expose Payment Service on port 5001
+      - "5001:5001" # Expose Payment Service on port 5001
     depends_on:
       - userservice
       - notificationservice
