@@ -1,9 +1,15 @@
+using NotificationService.Services;
+using static NotificationService.Services.NotificationSender;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// Bind the NotificationSettings configuration to the appsettings.json file.		
+builder.Services.Configure<NotificationSettings>(builder.Configuration);
+// Add the NotificationSender service to the container.
+builder.Services.AddScoped<NotificationSender>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
