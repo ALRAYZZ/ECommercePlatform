@@ -1,14 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using ProductCatalog.Data;
+using ProductCatalog.Repositories;
+using ProductCatalog.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
 builder.Services.AddDbContext<ProductContext>(options =>
 	options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddOpenApi();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IProductService, ProductService>();
 
 var app = builder.Build();
 
