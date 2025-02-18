@@ -1,4 +1,5 @@
 using NotificationService.Services;
+using NotificationService.Settings;
 using static NotificationService.Services.NotificationSender;
 
 var builder = WebApplication.CreateBuilder(args);

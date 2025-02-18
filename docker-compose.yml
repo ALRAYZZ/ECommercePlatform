@@ -7,6 +7,18 @@ services:
       - "6379:6379" # Expose Redis port for development
     volumes:
       - redis_data:/data # Persist Redis data
+    networks:
+      - traefik-network
+
+  consul:
+    image: consul:1.14.4
+    container_name: consul
+    ports:
+      - "8500:8500"
+      - "8600:8600"
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    networks:
+      - traefik-network
 
   # PostgreSQL for Product Catalog
   postgresql-products:
@@ -20,6 +32,8 @@ services:
       - "5432:5432" # Expose PostgreSQL port for development
     volumes:
       - postgres_products_data:/var/lib/postgresql/data # Persist database data
+    networks:
+      - traefik-network
 
   # PostgreSQL for User Service
   postgresql-users:
@@ -33,6 +47,8 @@ services:
       - "5433:5432" # Expose PostgreSQL port for development
     volumes:
       - postgres_users_data:/var/lib/postgresql/data # Persist database data
+    networks:
+      - traefik-network
 
   # PostgreSQL for Order Service
   postgresql-orders:
@@ -46,21 +62,38 @@ services:
       - "5434:5432" # Expose PostgreSQL port for development
     volumes:
       - postgres_orders_data:/var/lib/postgresql/data # Persist database data
+    networks:
+      - traefik-network
 
   # API Gateway
-  apigateway:
-    image: apigateway
-    build:
-      context: ./ApiGateway
-      dockerfile: Dockerfile
+  traefik:
+    image: "traefik:v2.9"
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
     ports:
-      - "5000:80" # Expose API Gateway on port 5000
+      - "80:80" # HTTP
+      - "8080:8080"  # Tarefik dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro" # Access Docker socket for service discovery
+    networks:
+      - traefik-network
     depends_on:
-      - paymentservice
-      - userservice
-      - notificationservice
+      - productcatalog
       - shoppingcart
+      - userservice
+      - paymentservice
+      - notificationservice
       - orderservice
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`traefik-dashboard.local`)"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=web"
 
   # Payment Service
   paymentservice:
@@ -73,6 +106,12 @@ services:
     depends_on:
       - userservice
       - notificationservice
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paymentservice.rule=Host(`paymentservice.local`)"
+      - "traefik.http.services.paymentservice.loadbalancer.server.port=5001"
 
   # User Service
   userservice:
@@ -84,8 +123,15 @@ services:
       - "5002:80" # Expose User Service on port 5002
     depends_on:
       - postgresql-users
+      - consul
     environment:
       - CONNECTION_STRING=Host=postgresql-users;Database=users_db;Username=admin;Password=adminpassword
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.userservice.rule=Host(`userservice.local`)"
+      - "traefik.http.services.userservice.loadbalancer.server.port=80"
 
   # Notification Service
   notificationservice:
@@ -99,6 +145,16 @@ services:
     environment:
     - ASPNETCORE_URLS=http://+:80;https://+:443  # Listen on both HTTP and HTTPS
     - ASPNETCORE_HTTPS_PORT=443                  # Specify the HTTPS port
+    - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx  # Path to the certificate
+    - ASPNETCORE_Kestrel__Certificates__Default__Password=Password123!     # Certificate password
+    volumes:
+    - ./certs:/https:ro  # Mount the certificate
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.notificationservice.rule=Host(`notificationservice.local`)"
+      - "traefik.http.services.notificationservice.loadbalancer.server.port=80"
 
   # Product Catalog Service
   productcatalog:
@@ -112,6 +168,13 @@ services:
       - postgresql-products
     environment:
       - CONNECTION_STRING=Host=postgresql-products;Database=products_db;Username=admin;Password=adminpassword
+      - ASPNETCORE_URLS=http://+:80 # Set port for Product Catalog Service
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.productcatalog.rule=Host(`productcatalog.local`) && PathPrefix(`/api/products`)"
+      - "traefik.http.services.productcatalog.loadbalancer.server.port=80"
 
   # Shopping Cart Service
   shoppingcart:
@@ -120,12 +183,18 @@ services:
       context: ./ShoppingCart
       dockerfile: Dockerfile
     ports:
-      - "5005:80" # Expose Shopping Cart Service on port 5005
+      - "5005:8080" # Expose Shopping Cart Service on port 5005
     depends_on:
       - redis
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.shoppingcart.rule=Host(`shoppingcart.local`)"
+      - "traefik.http.services.shoppingcart.loadbalancer.server.port=8080"
 
   # Order Service
   orderservice:
@@ -135,6 +204,17 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5006:80" # Expose Order Service on port 500
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orderservice.rule=Host(`orderservice.local`)"
+      - "traefik.http.services.orderservice.loadbalancer.server.port=80"
+
+
+networks:
+    traefik-network:
+        driver: bridge    
 
 volumes:
   redis_data:

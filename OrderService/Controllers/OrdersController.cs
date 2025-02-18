@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Data;
+using OrderService.DTOs;
 using OrderService.Models;
+using OrderService.Services;
 
 namespace OrderService.Controllers
 {
@@ -9,37 +11,50 @@ namespace OrderService.Controllers
 	[Route("api/[controller]")]
 	public class OrdersController : ControllerBase
 	{
-		private readonly OrdersContext _context;
+		private readonly IOrdersService _ordersService;
 
-		public OrdersController(OrdersContext context)
+		public OrdersController(IOrdersService ordersService)
 		{
-			_context=context;
+			_ordersService=ordersService;
 		}
 
 		[HttpGet]
-		public async Task<ActionResult<IEnumerable<OrdersModel>>> GetOrders()
+		public async Task<ActionResult<List<OrderDto>>> GetOrders([FromQuery] string? userId = null)
 		{
-			return await _context.Orders.ToListAsync();
+			var orders = await _ordersService.GetAllOrdersAsync(userId);
+			return Ok(orders);
 		}
 
 		[HttpGet("{id}")]
-		public async Task<ActionResult<OrdersModel>> GetOrder(int id)
+		public async Task<ActionResult<OrderDto>> GetOrder(int id)
 		{
-			var result = await _context.Orders.FindAsync(id);
-			if (result == null)
+			var order = await _ordersService.GetOrderByIdAsync(id);
+			if (order == null)
 			{
 				return NotFound();
 			}
-			return result;
+			return Ok(order);
 		}
 
 		[HttpPost]
-		public async Task<ActionResult<OrdersModel>> PostOrder(OrdersModel order)
+		public async Task<ActionResult<OrderDto>> CreateOrder([FromBody] CreateOrderDto createOrderDto)
 		{
-			_context.Orders.Add(order);
-			await _context.SaveChangesAsync();
+			var createdOrder = await _ordersService.CreateOrderAsync(createOrderDto);
+			return CreatedAtAction(nameof(GetOrder), new { id = createdOrder.Id }, createdOrder);
+		}
 
-			return CreatedAtAction("GetOrder", new { id = order.Id }, order);
+		[HttpPut("{id}/staus")]
+		public async Task<ActionResult> UpdateOrderStatus(int id, [FromQuery] string newStatus)
+		{
+			await _ordersService.UpdateOrderStatusAsync(id, newStatus);
+			return NoContent();
+		}
+
+		[HttpDelete("{id}")]
+		public async Task<IActionResult> DeleteOrder(int id)
+		{
+			await _ordersService.DeleteOrderAsync(id);
+			return NoContent();
 		}
 	}
 }
